@@ -51,7 +51,7 @@ productRouter.put(
 productRouter.post('/remove', adminAuth, removeProduct);
 productRouter.get('/list', listLimiter, listProduct);
 productRouter.get('/categories', listLimiter, getCategories);
-productRouter.get('/:productId', singleLimiter, userAuth, singleProduct);
+productRouter.get('/:productId', singleLimiter, singleProduct);
 productRouter.get('/:id/ratings', getProductRatings);
 productRouter.post('/review', userAuth, reviewValidation, validate, addProductReview);
 
