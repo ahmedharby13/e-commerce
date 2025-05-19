@@ -1,4 +1,3 @@
-// src/components/RelatedProducts.tsx
 import React, { useContext } from 'react';
 import { shopContext } from '../context/shopContext';
 import ProductItem from './ProductItem';

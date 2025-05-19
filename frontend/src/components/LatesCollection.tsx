@@ -1,4 +1,3 @@
-// src/components/LatestCollection.tsx
 import React, { useContext } from 'react';
 import { shopContext } from '../context/shopContext';
 import Title from './Title';

@@ -1,4 +1,3 @@
-// src/pages/PlaceOrder.tsx
 import React, { useContext, useState, FormEvent } from 'react';
 import Title from '../components/Title';
 import CartTotal from '../components/CartTotal';
@@ -6,70 +5,102 @@ import { assets } from '../assets/assets';
 import { shopContext } from '../context/shopContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import Cookies from 'js-cookie';
 
 interface FormData {
-  firstName: string;
-  lastName: string;
-  email: string;
   street: string;
   city: string;
   state: string;
   zipcode: string;
   country: string;
-  phone: string;
+}
+
+interface OrderItem {
+  name: string;
+  price: number;
+  quantity: number;
+  size?: string;
 }
 
 const PlaceOrder: React.FC = () => {
-  const [PayMethod, SetPayMethod] = useState<'cod' | 'stripe'>('cod');
-  const { navigate, backendUrl, token, CartItem, products, GetCartAmount, delivery_fee, csrfToken } = useContext(shopContext)!;
+  const [payMethod, setPayMethod] = useState<'cod' | 'stripe'>('cod');
+  const { navigate, backendUrl, token, CartItem, SetCartItem, products, GetCartAmount, delivery_fee, csrfToken, isAuthenticated } = useContext(shopContext)!;
 
-  const [formData, SetFormData] = useState<FormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
+  const [formData, setFormData] = useState<FormData>({
     street: '',
     city: '',
     state: '',
     zipcode: '',
     country: '',
-    phone: '',
   });
 
   const onChangeHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    SetFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const validateForm = (): boolean => {
+    const { street, city, state, zipcode, country} = formData;
+    if (!street.trim() || !city.trim() || !state.trim() || !zipcode.trim() || !country.trim()) {
+      toast.error('All fields are required');
+      return false;
+    }
+    if (!/^\d{5}$/.test(zipcode)) {
+      toast.error('Zipcode must be a 5-digit number');
+      return false;
+    }
+    return true;
   };
 
   const onSubmitHandler = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      if (!token) {
-        toast.error('Please login to proceed');
+      if (!isAuthenticated || !token) {
+        toast.error('Please login or register to place an order');
         navigate('/login');
         return;
       }
 
       const userId = localStorage.getItem('userId');
       if (!userId) {
-        toast.error('User ID not found');
+        toast.error('User ID not found. Please login again.');
         navigate('/login');
         return;
       }
 
-      const items = [];
+      if (!csrfToken) {
+        toast.error('Authentication error. Please try again.');
+        navigate('/login');
+        return;
+      }
+
+      if (!validateForm()) {
+        return;
+      }
+
+      const items: OrderItem[] = [];
       for (const productId in CartItem) {
         const product = products.find((p) => p._id === productId);
-        if (product) {
-          for (const size in CartItem[productId]) {
-            const quantity = CartItem[productId][size];
+        if (!product) {
+          toast.error(`Product ${productId} not found`);
+          continue;
+        }
+        for (const size in CartItem[productId]) {
+          const quantity = CartItem[productId][size];
+          if (quantity > 0) {
             items.push({
               name: product.name,
               price: product.price,
               quantity,
-              size,
+              size: size === 'undefined' ? undefined : size,
             });
           }
         }
+      }
+
+      if (items.length === 0) {
+        toast.error('Cart is empty');
+        return;
       }
 
       const orderData = {
@@ -85,17 +116,19 @@ const PlaceOrder: React.FC = () => {
         amount: GetCartAmount() + delivery_fee,
       };
 
-      switch (PayMethod) {
+      switch (payMethod) {
         case 'cod': {
           const response = await axios.post(`${backendUrl}/api/order/place`, orderData, {
             headers: { Authorization: `Bearer ${token}`, 'X-CSRF-Token': csrfToken },
             withCredentials: true,
           });
           if (response.data.success) {
+            SetCartItem({});
+            Cookies.remove('guestCart');
             toast.success(response.data.message);
             navigate('/orders');
           } else {
-            toast.error(response.data.message);
+            toast.error(response.data.message || 'Failed to place order');
           }
           break;
         }
@@ -103,24 +136,25 @@ const PlaceOrder: React.FC = () => {
         case 'stripe': {
           const toastId = toast.loading('Please wait...');
           const response = await axios.post(`${backendUrl}/api/order/stripe`, orderData, {
-            headers: { Authorization: `Bearer ${token}`, 'X-CSRF-Token': csrfToken },
+            headers: { Authorization: `Bearer ${token}`, 'X-CSRF-Token': csrfToken, Origin: window.location.origin },
             withCredentials: true,
           });
           if (response.data.success) {
-            toast.update(toastId, { render: 'Redirecting', type: 'success', isLoading: false, autoClose: 3000 });
+            toast.update(toastId, { render: 'Redirecting to Stripe', type: 'success', isLoading: false, autoClose: 3000 });
             window.location.replace(response.data.session_url);
           } else {
-            toast.update(toastId, { render: response.data.message, type: 'error', isLoading: false, autoClose: 3000 });
+            toast.update(toastId, { render: response.data.message || 'Failed to initiate Stripe payment', type: 'error', isLoading: false, autoClose: 3000 });
           }
           break;
         }
 
         default:
+          toast.error('Invalid payment method');
           break;
       }
     } catch (error: any) {
-      console.error(error);
-      toast.error(error.message);
+      const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
+      toast.error(errorMessage);
     }
   };
 
@@ -130,35 +164,6 @@ const PlaceOrder: React.FC = () => {
         <div className="text-xl sm:text-2xl my-3">
           <Title text1={'DELIVERY'} text2={'INFORMATION'} />
         </div>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            name="firstName"
-            value={formData.firstName}
-            onChange={onChangeHandler}
-            placeholder="First name"
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-          <input
-            type="text"
-            name="lastName"
-            value={formData.lastName}
-            onChange={onChangeHandler}
-            placeholder="Last name"
-            className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-            required
-          />
-        </div>
-        <input
-          type="email"
-          placeholder="Email address"
-          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          name="email"
-          value={formData.email}
-          onChange={onChangeHandler}
-          required
-        />
         <input
           type="text"
           placeholder="Street"
@@ -167,6 +172,7 @@ const PlaceOrder: React.FC = () => {
           value={formData.street}
           onChange={onChangeHandler}
           required
+          aria-label="Street address"
         />
         <div className="flex gap-3">
           <input
@@ -177,6 +183,7 @@ const PlaceOrder: React.FC = () => {
             value={formData.city}
             onChange={onChangeHandler}
             required
+            aria-label="City"
           />
           <input
             type="text"
@@ -186,17 +193,20 @@ const PlaceOrder: React.FC = () => {
             value={formData.state}
             onChange={onChangeHandler}
             required
+            aria-label="State"
           />
         </div>
         <div className="flex gap-3">
           <input
-            type="number"
+            type="text"
             placeholder="Zipcode"
             className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
             name="zipcode"
             value={formData.zipcode}
             onChange={onChangeHandler}
             required
+            pattern="\d{5}"
+            aria-label="Zipcode"
           />
           <input
             type="text"
@@ -206,41 +216,44 @@ const PlaceOrder: React.FC = () => {
             value={formData.country}
             onChange={onChangeHandler}
             required
+            aria-label="Country"
           />
         </div>
-        <input
-          type="number"
-          placeholder="Phone"
-          className="border border-gray-300 rounded py-1.5 px-3.5 w-full"
-          name="phone"
-          value={formData.phone}
-          onChange={onChangeHandler}
-          required
-        />
       </div>
-
       <div className="mt-8">
         <div className="mt-8 min-w-80">
           <CartTotal />
         </div>
-
         <div className="mt-12">
           <Title text1={'PAYMENT'} text2={'METHOD'} />
         </div>
-
         <div className="flex gap-3 flex-col lg:flex-row">
-          <div onClick={() => SetPayMethod('stripe')} className="flex items-center gap-3 border p-2 px-3 cursor-pointer">
-            <p className={`min-w-3.5 h-3.5 border rounded-full ${PayMethod === 'stripe' ? 'bg-green-400' : ''}`}></p>
+          <div
+            onClick={() => setPayMethod('stripe')}
+            className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
+            role="button"
+            aria-label="Select Stripe payment"
+          >
+            <p className={`min-w-3.5 h-3.5 border rounded-full ${payMethod === 'stripe' ? 'bg-green-400' : ''}`}></p>
             <img className="h-5 mx-4" src={assets.stripe_logo} alt="Stripe" />
           </div>
-          <div onClick={() => SetPayMethod('cod')} className="flex items-center gap-3 border p-2 px-3 cursor-pointer">
-            <p className={`min-w-3.5 h-3.5 border rounded-full ${PayMethod === 'cod' ? 'bg-green-400' : ''}`}></p>
+          <div
+            onClick={() => setPayMethod('cod')}
+            className="flex items-center gap-3 border p-2 px-3 cursor-pointer"
+            role="button"
+            aria-label="Select Cash on Delivery"
+          >
+            <p className={`min-w-3.5 h-3.5 border rounded-full ${payMethod === 'cod' ? 'bg-green-400' : ''}`}></p>
             <p className="text-gray-500 text-sm font-medium mx-4">CASH ON DELIVERY</p>
           </div>
         </div>
-
         <div className="w-full text-end mt-8">
-          <button className="bg-black text-white px-16 py-3 text-sm" type="submit">
+          <button
+            className="bg-black text-white px-16 py-3 text-sm disabled:bg-gray-500"
+            type="submit"
+            disabled={Object.keys(CartItem).length === 0}
+            aria-label="Place order"
+          >
             PLACE ORDER
           </button>
         </div>

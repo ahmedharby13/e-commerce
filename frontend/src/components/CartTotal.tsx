@@ -1,4 +1,3 @@
-// src/components/CartTotal.tsx
 import React, { useContext } from 'react';
 import { shopContext } from '../context/shopContext';
 

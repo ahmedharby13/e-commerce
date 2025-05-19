@@ -1,4 +1,3 @@
-// src/components/ProductItem.tsx
 import React, { useContext } from 'react';
 import { shopContext } from '../context/shopContext';
 import { Link } from 'react-router-dom';
@@ -28,8 +27,8 @@ const ProductItem: React.FC<ProductItemProps> = ({ id, images, name, price }) =>
       </div>
       <p className="pt-3 pb-1 text-sm">{name}</p>
       <p className="text-sm font-medium">
-        {currency}
         {price}
+        {currency}
       </p>
     </Link>
   );

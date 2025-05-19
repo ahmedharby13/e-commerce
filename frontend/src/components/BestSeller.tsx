@@ -1,4 +1,3 @@
-// src/components/BestSeller.tsx
 import React, { useContext, useEffect, useState } from 'react';
 import { shopContext, Product } from '../context/shopContext';
 import Title from './Title';
@@ -21,7 +20,8 @@ const BestSeller: React.FC = () => {
           "Discover our best-selling pieces—loved by many, designed for you. Elevate your style with fashion that never goes out of trend!"
         </p>
       </div>
-
+      
+        {/* Best seller products */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-4 gap-y-6">
         {bestSeller.map((item) => (
           <ProductItem
