@@ -1,16 +1,25 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
-  SetToken: (token: string) => void;
+  setToken: (token: null) => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ SetToken }) => {
+const Navbar: React.FC<NavbarProps> = ({ setToken }) => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    setToken(null);
+    localStorage.removeItem('adminToken');
+    navigate('/');
+  };
+
   return (
-    <div className="flex items-center py-2 px-[4%] justify-between">
-      <h1 className="text-2xl logo font-bold">EVOQUE-Admin</h1>
+    <div className="flex items-center py-2 px-[4%] justify-between bg-white shadow-md">
+      <h1 className="text-2xl logo font-bold text-gray-800">EVOQUE-Admin</h1>
       <button
-        onClick={() => SetToken('')}
-        className="bg-gray-600 text-white px-5 py-2 sm:px-7 sm:py-2 rounded-full text-xs sm:text-sm"
+        onClick={handleLogout}
+        className="bg-blue-500 text-white px-5 py-2 sm:px-7 sm:py-2 rounded-full text-xs sm:text-sm hover:bg-blue-600 transition-colors"
       >
         Logout
       </button>

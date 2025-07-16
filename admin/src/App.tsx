@@ -1,46 +1,50 @@
-/* eslint-disable react-refresh/only-export-components */
 import React, { useEffect, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import Login from './pages/Login';
+import Products from './pages/Products';
+import ProductUpdate from './pages/ProductUpdate';
+import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import Add from './pages/Add';
-import List from './pages/List';
-import Orders from './pages/Orders';
-import Login from './pages/Login';
 
-export const backendUrl = import.meta.env.VITE_BACKEND_URL as string;
-export const currency = '₹';
+interface Token {
+  accessToken: string;
+  refreshToken: string;
+}
 
 const App: React.FC = () => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<Token | null>(() => {
+    const storedToken = localStorage.getItem('adminToken');
+    return storedToken ? JSON.parse(storedToken) : null;
+  });
+  const navigate = useNavigate();
 
   useEffect(() => {
-    localStorage.setItem('token', token || '');
-  }, [token]);
+    if (token) {
+      localStorage.setItem('adminToken', JSON.stringify(token));
+      navigate('/products');
+    } else {
+      localStorage.removeItem('adminToken');
+      navigate('/');
+    }
+  }, [token, navigate]);
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <ToastContainer />
-      {token ? (
-        <>
-          <Navbar SetToken={setToken} />
-          <hr />
-          <div className="flex w-full">
-            <Sidebar />
-            <div className="w-[70%] mx-auto ml-[max(5vw,25px)] my-8 text-gray-600 text-base">
-              <Routes>
-                <Route path="/add" element={<Add token={token} />} />
-                <Route path="/list" element={<List token={token} />} />
-                <Route path="/orders" element={<Orders token={token} />} />
-              </Routes>
-            </div>
-          </div>
-        </>
-      ) : (
-        <Login SetToken={setToken} />
-      )}
+    <div className="min-h-screen bg-gray-100">
+      {token && <Navbar setToken={setToken} />}
+      <div className="flex">
+        {token && <Sidebar />}
+        <div className="flex-1 p-6">
+          <Routes>
+            <Route path="/" element={<Login setToken={setToken} />} />
+            <Route path="/products" element={<Products token={token?.accessToken || ''} />} />
+            <Route path="/product/:productId" element={<ProductUpdate token={token?.accessToken || ''} />} />
+            <Route path="/orders" element={<Orders token={token?.accessToken || ''} />} />
+            <Route path="/order/:orderId" element={<OrderDetail token={token?.accessToken || ''} />} />
+          </Routes>
+        </div>
+      </div>
     </div>
   );
 };
